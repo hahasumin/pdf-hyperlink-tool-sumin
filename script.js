@@ -10,10 +10,8 @@ function log(message) {
   logBox.textContent += message + "\n";
 }
 
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\s+/g, " ")
-    .trim();
+function normalize(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
 }
 
 function parseCSV(text) {
@@ -26,54 +24,79 @@ function parseCSV(text) {
     let insideQuotes = false;
 
     for (const char of line) {
-      if (char === '"') {
-        insideQuotes = !insideQuotes;
-      } else if (char === "," && !insideQuotes) {
+      if (char === '"') insideQuotes = !insideQuotes;
+      else if (char === "," && !insideQuotes) {
         values.push(current.trim());
         current = "";
-      } else {
-        current += char;
-      }
+      } else current += char;
     }
 
     values.push(current.trim());
 
     const row = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] || "";
-    });
-
+    headers.forEach((h, i) => row[h] = values[i] || "");
     return row;
   });
 }
 
-async function getPdfTextItems(pdfBytes, pageNumber) {
+async function getTextLines(pdfBytes, pageNumber) {
   const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
   const pdf = await loadingTask.promise;
   const page = await pdf.getPage(pageNumber);
   const textContent = await page.getTextContent();
 
-  return textContent.items.map(item => {
-    const x = item.transform[4];
-    const y = item.transform[5];
-
-    return {
-      text: item.str,
-      normalized: normalizeText(item.str),
-      x,
-      y,
+  const items = textContent.items
+    .filter(item => normalize(item.str))
+    .map(item => ({
+      text: normalize(item.str),
+      x: item.transform[4],
+      y: item.transform[5],
       width: item.width,
       height: Math.abs(item.transform[0]) || 10
-    };
+    }));
+
+  items.sort((a, b) => {
+    if (Math.abs(b.y - a.y) > 3) return b.y - a.y;
+    return a.x - b.x;
   });
+
+  return items;
 }
 
-function itemToRect(item) {
+function groupLinkedLines(lines, startIndex) {
+  const group = [lines[startIndex]];
+  const first = lines[startIndex];
+
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    const current = lines[i];
+    const previous = group[group.length - 1];
+
+    const yGap = previous.y - current.y;
+    const xClose = Math.abs(current.x - first.x) < 20;
+
+    const looksLikeSameBlock =
+      yGap > 6 &&
+      yGap < 22 &&
+      xClose;
+
+    if (looksLikeSameBlock) {
+      group.push(current);
+    } else {
+      break;
+    }
+
+    if (group.length >= 4) break;
+  }
+
+  return group;
+}
+
+function rectFromLine(line) {
   return {
-    x: item.x,
-    y: item.y - 2,
-    width: item.width,
-    height: item.height + 4
+    x: line.x,
+    y: line.y - 2,
+    width: line.width,
+    height: line.height + 4
   };
 }
 
@@ -83,35 +106,10 @@ function combineRects(rects) {
   const x1 = Math.max(...rects.map(r => r.x + r.width));
   const y1 = Math.max(...rects.map(r => r.y + r.height));
 
-  return {
-    x: x0,
-    y: y0,
-    width: x1 - x0,
-    height: y1 - y0
-  };
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
-function findLineRect(textItems, targetText) {
-  const target = normalizeText(targetText);
-
-  // Exact match first
-  for (const item of textItems) {
-    if (item.normalized === target) {
-      return itemToRect(item);
-    }
-  }
-
-  // Partial match fallback
-  for (const item of textItems) {
-    if (item.normalized.includes(target)) {
-      return itemToRect(item);
-    }
-  }
-
-  return null;
-}
-
-function addLinkAnnotation(pdfDoc, page, rect, url) {
+function addLink(pdfDoc, page, rect, url) {
   page.node.addAnnot(
     pdfDoc.context.obj({
       Type: "Annot",
@@ -132,12 +130,33 @@ function addLinkAnnotation(pdfDoc, page, rect, url) {
   );
 }
 
-function drawUnderline(page, rect) {
+function underline(page, rect) {
   page.drawLine({
     start: { x: rect.x, y: rect.y },
     end: { x: rect.x + rect.width, y: rect.y },
     thickness: 0.5
   });
+}
+
+function downloadFailedReport(failed) {
+  if (!failed.length) return;
+
+  const header = "contains,url,reason\n";
+  const rows = failed.map(item =>
+    [
+      `"${String(item.contains).replace(/"/g, '""')}"`,
+      `"${String(item.url).replace(/"/g, '""')}"`,
+      `"${String(item.reason).replace(/"/g, '""')}"`
+    ].join(",")
+  );
+
+  const blob = new Blob([header + rows.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "failed_report.csv";
+  a.click();
 }
 
 startBtn.addEventListener("click", async () => {
@@ -151,137 +170,78 @@ startBtn.addEventListener("click", async () => {
     return;
   }
 
-  try {
-    log("Reading files...");
+  const pdfBytes = await pdfFile.arrayBuffer();
+  const csvText = await csvFile.text();
+  const rules = parseCSV(csvText);
 
-    const pdfBytes = await pdfFile.arrayBuffer();
-    const csvText = await csvFile.text();
-    const rows = parseCSV(csvText);
+  const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes.slice(0));
+  const pages = pdfDoc.getPages();
 
-    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes.slice(0));
-    const pages = pdfDoc.getPages();
+  let inserted = 0;
+  const failed = [];
 
-    let inserted = 0;
-    const failed = [];
+  log(`PDF pages: ${pages.length}`);
+  log(`Rules: ${rules.length}`);
+  log("");
 
-    log(`PDF pages: ${pages.length}`);
-    log(`CSV rows: ${rows.length}`);
-    log("");
+  for (const rule of rules) {
+    const contains = normalize(rule.contains);
+    const url = normalize(rule.url);
 
-    for (const row of rows) {
-      const matchText = normalizeText(row.match_text);
-      const url = normalizeText(row.url);
+    if (!contains || !url) {
+      failed.push({ contains, url, reason: "Missing contains or url" });
+      continue;
+    }
 
-      if (!matchText || !url) {
-        failed.push({
-          match_text: matchText,
-          url,
-          reason: "Missing match_text or url"
-        });
-        continue;
-      }
+    let found = false;
 
-      const lines = matchText
-        .split("|")
-        .map(t => normalizeText(t))
-        .filter(Boolean);
+    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+      const pageNumber = pageIndex + 1;
+      const page = pages[pageIndex];
+      const lines = await getTextLines(pdfBytes, pageNumber);
 
-      let foundAny = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
 
-      for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-        const pageNumber = pageIndex + 1;
-        const page = pages[pageIndex];
+        if (!line.text.includes(contains)) continue;
 
-        const textItems = await getPdfTextItems(pdfBytes, pageNumber);
+        const group = groupLinkedLines(lines, i);
+        const rects = group.map(rectFromLine);
+        const linkRect = combineRects(rects);
 
-        const rects = [];
+        addLink(pdfDoc, page, linkRect, url);
 
-        for (const line of lines) {
-          const rect = findLineRect(textItems, line);
-          if (rect) {
-            rects.push(rect);
-          }
-        }
+        rects.forEach(rect => underline(page, rect));
 
-        if (rects.length === lines.length) {
-          const linkRect = combineRects(rects);
+        inserted++;
+        found = true;
 
-          addLinkAnnotation(pdfDoc, page, linkRect, url);
-
-          for (const rect of rects) {
-            drawUnderline(page, rect);
-          }
-
-          inserted++;
-          foundAny = true;
-
-          log(`Inserted: Page ${pageNumber} - ${matchText}`);
-        }
-      }
-
-      if (!foundAny) {
-        failed.push({
-          match_text: matchText,
-          url,
-          reason: "Text not found in PDF"
-        });
+        log(`Inserted: Page ${pageNumber} - ${group.map(g => g.text).join(" | ")}`);
       }
     }
 
-    const modifiedPdfBytes = await pdfDoc.save();
-
-    const blob = new Blob([modifiedPdfBytes], {
-      type: "application/pdf"
-    });
-
-    const downloadUrl = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = pdfFile.name.replace(/\.pdf$/i, "_with_links.pdf");
-    a.click();
-
-    log("");
-    log("Done.");
-    log(`Inserted links: ${inserted}`);
-    log(`Failed: ${failed.length}`);
-
-    if (failed.length > 0) {
-      log("");
-      log("Failed items:");
-      failed.forEach(item => {
-        log(`${item.match_text} - ${item.reason}`);
+    if (!found) {
+      failed.push({
+        contains,
+        url,
+        reason: "No matching text found"
       });
-
-      downloadFailedReport(failed);
     }
-
-  } catch (error) {
-    console.error(error);
-    alert("Error: " + error.message);
   }
-});
 
-function downloadFailedReport(failed) {
-  const header = "match_text,url,reason\n";
-  const rows = failed.map(item => {
-    return [
-      `"${String(item.match_text || "").replace(/"/g, '""')}"`,
-      `"${String(item.url || "").replace(/"/g, '""')}"`,
-      `"${String(item.reason || "").replace(/"/g, '""')}"`
-    ].join(",");
-  });
-
-  const csvContent = header + rows.join("\n");
-
-  const blob = new Blob([csvContent], {
-    type: "text/csv"
-  });
-
-  const url = URL.createObjectURL(blob);
+  const modifiedPdfBytes = await pdfDoc.save();
+  const blob = new Blob([modifiedPdfBytes], { type: "application/pdf" });
+  const downloadUrl = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "failed_report.csv";
+  a.href = downloadUrl;
+  a.download = pdfFile.name.replace(/\.pdf$/i, "_with_links.pdf");
   a.click();
-}
+
+  downloadFailedReport(failed);
+
+  log("");
+  log("Done.");
+  log(`Inserted links: ${inserted}`);
+  log(`Failed: ${failed.length}`);
+});
