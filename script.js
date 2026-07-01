@@ -85,7 +85,7 @@ function groupLinkedLines(lines, startIndex) {
       break;
     }
 
-    if (group.length >= 4) break;
+    if (group.length >= 3) break;
   }
 
   return group;
