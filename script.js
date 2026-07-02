@@ -67,43 +67,41 @@ function groupLinkedLines(lines, startIndex) {
   const first = lines[startIndex];
   const group = [first];
 
-  const X_TOLERANCE = 20;   // 아래 줄 시작점 허용 범위
-  const MIN_Y_GAP = 6;
-  const MAX_Y_GAP = 24;
+  // 아주 제한적으로만 아래 줄 추가
+  const X_TOLERANCE = 12;   // x 시작점 차이 허용
+  const MIN_Y_GAP = 7;      // 너무 가까운 건 제외
+  const MAX_Y_GAP = 16;     // 너무 멀면 다른 항목으로 봄
+  const MAX_LINES = 3;      // 최대 3줄까지
 
-  let currentBase = first;
+  let baseLine = first;
 
-  for (let step = 0; step < 3; step++) {
-    const candidates = lines.filter(line => {
-      const yGap = currentBase.y - line.y;
+  while (group.length < MAX_LINES) {
+    let bestCandidate = null;
+    let bestGap = Infinity;
 
-      const isBelow =
-        yGap > MIN_Y_GAP &&
-        yGap < MAX_Y_GAP;
+    for (const line of lines) {
+      if (group.includes(line)) continue;
 
-      const sameColumn =
-        Math.abs(line.x - first.x) < X_TOLERANCE;
+      const yGap = baseLine.y - line.y;
+      const xGap = Math.abs(line.x - first.x);
 
-      return isBelow && sameColumn;
-    });
+      const isDirectlyBelow =
+        yGap >= MIN_Y_GAP &&
+        yGap <= MAX_Y_GAP;
 
-    if (candidates.length === 0) break;
+      const hasSameLeftEdge =
+        xGap <= X_TOLERANCE;
 
-    // 가장 가까운 아래 줄 선택
-    candidates.sort((a, b) => {
-      const gapA = currentBase.y - a.y;
-      const gapB = currentBase.y - b.y;
-      return gapA - gapB;
-    });
+      if (isDirectlyBelow && hasSameLeftEdge && yGap < bestGap) {
+        bestCandidate = line;
+        bestGap = yGap;
+      }
+    }
 
-    const nextLine = candidates[0];
+    if (!bestCandidate) break;
 
-    if (group.includes(nextLine)) break;
-
-    group.push(nextLine);
-    currentBase = nextLine;
-
-    if (group.length >= 3) break;
+    group.push(bestCandidate);
+    baseLine = bestCandidate;
   }
 
   return group;
