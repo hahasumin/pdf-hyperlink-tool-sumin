@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="stylesheet" href="style.css">
   <meta charset="UTF-8" />
   <title>PDF Link Tool</title>
   <style>
@@ -36,68 +35,28 @@
   </style>
 </head>
 <body>
+  <h1>PDF Link Tool</h1>
 
-<div class="container">
+  <p>
+    This tool runs in your browser. Files are not uploaded to a server.
+  </p>
 
-<h1>PDF Link Tool</h1>
+  <div class="box">
+    <label>PDF file:</label><br />
+    <input type="file" id="pdfFile" accept="application/pdf" />
+  </div>
 
-<p class="subtitle">
-Automatically add hyperlinks to your PDF using a simple CSV template.
-Everything runs locally in your browser.
-</p>
+  <div class="box">
+    <label>CSV file:</label><br />
+    <input type="file" id="csvFile" accept=".csv" />
+  </div>
 
-<div class="section">
+  <button id="startBtn">Start</button>
 
-<h2>PDF File</h2>
+  <div id="log"></div>
 
-<input
-type="file"
-id="pdfFile"
-accept="application/pdf">
-
-</div>
-
-<div class="section">
-
-<h2>CSV File</h2>
-
-<input
-type="file"
-id="csvFile"
-accept=".csv">
-
-</div>
-
-<div class="buttons">
-
-<button
-class="secondary"
-id="templateBtn">
-
-Download CSV Template
-
-</button>
-
-<button
-class="primary"
-id="startBtn">
-
-Generate PDF
-
-</button>
-
-</div>
-
-<div id="log"></div>
-
-<div class="footer">
-
-Runs entirely in your browser.
-Your files are never uploaded.
-
-</div>
-
-</div>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
