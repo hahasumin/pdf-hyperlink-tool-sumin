@@ -67,11 +67,10 @@ function groupLinkedLines(lines, startIndex) {
   const first = lines[startIndex];
   const group = [first];
 
-  // 아주 제한적으로만 아래 줄 추가
-  const X_TOLERANCE = 12;   // x 시작점 차이 허용
-  const MIN_Y_GAP = 7;      // 너무 가까운 건 제외
-  const MAX_Y_GAP = 16;     // 너무 멀면 다른 항목으로 봄
-  const MAX_LINES = 3;      // 최대 3줄까지
+  const X_TOLERANCE = 12;
+  const MIN_Y_GAP = 7;
+  const MAX_Y_GAP = 16;
+  const MAX_LINES = 3;
 
   let baseLine = first;
 
@@ -92,7 +91,15 @@ function groupLinkedLines(lines, startIndex) {
       const hasSameLeftEdge =
         xGap <= X_TOLERANCE;
 
-      if (isDirectlyBelow && hasSameLeftEdge && yGap < bestGap) {
+      const startsNewBuilding =
+        /^Building\s+\d+/i.test(line.text);
+
+      if (
+        isDirectlyBelow &&
+        hasSameLeftEdge &&
+        !startsNewBuilding &&
+        yGap < bestGap
+      ) {
         bestCandidate = line;
         bestGap = yGap;
       }
