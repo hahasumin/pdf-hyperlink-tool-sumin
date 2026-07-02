@@ -18,7 +18,7 @@ function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(",").map(h => h.trim());
 
-  return lines.slice(1).map(line => {
+  return lines.slice(1).map((line, index) => {
     const values = [];
     let current = "";
     let insideQuotes = false;
@@ -33,9 +33,23 @@ function parseCSV(text) {
 
     values.push(current.trim());
 
-    const row = {};
-    headers.forEach((h, i) => row[h] = values[i] || "");
+    const row = {
+      csvRow: index + 2
+    };
+
+    headers.forEach((h, i) => {
+      row[h] = values[i] || "";
+    });
+
     return row;
+  });
+}
+
+headers.forEach((h, i) => {
+  row[h] = values[i] || "";
+});
+
+return row;
   });
 }
 
@@ -274,35 +288,30 @@ log(`Inserted: Page ${pageNumber} - ${group.map(g => g.text).join(" | ")}`);
 
   downloadFailedReport(failed);
 
-  log("");
+ log("");
 log("================================");
 log("Done.");
+log("");
 log(`Inserted links : ${inserted}`);
 log(`Failed         : ${failed.length}`);
 
-log("");
-log("Matched summary:");
-log("--------------------------------");
-
-Object.keys(matchedSummary).forEach(key => {
-  const item = matchedSummary[key];
-  const uniquePages = [...new Set(item.pages)];
-
-  log(`• ${key}`);
-  log(`  Matched : ${item.count}`);
-  log(`  Pages   : ${uniquePages.join(", ")}`);
-  log("");
-});
-
 if (failed.length > 0) {
-  log("Failed items:");
+  log("");
+  log("Failed items");
   log("--------------------------------");
 
   failed.forEach(item => {
     log(`• ${item.contains || "(blank)"}`);
-    log(`  URL    : ${item.url || "(blank)"}`);
     log(`  Reason : ${item.reason}`);
+
+    if (item.url) {
+      log(`  URL    : ${item.url}`);
+    }
+
     log("");
   });
+} else {
+  log("");
+  log("No failed items.");
 }
 });
