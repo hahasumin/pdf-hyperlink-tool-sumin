@@ -202,6 +202,7 @@ startBtn.addEventListener("click", async () => {
 
   let inserted = 0;
   const failed = [];
+  const matchedSummary = {};
 
   log(`PDF pages: ${pages.length}`);
   log(`Rules: ${rules.length}`);
@@ -237,9 +238,19 @@ startBtn.addEventListener("click", async () => {
         rects.forEach(rect => underline(page, rect));
 
         inserted++;
-        found = true;
+found = true;
 
-        log(`Inserted: Page ${pageNumber} - ${group.map(g => g.text).join(" | ")}`);
+if (!matchedSummary[contains]) {
+  matchedSummary[contains] = {
+    count: 0,
+    pages: []
+  };
+}
+
+matchedSummary[contains].count++;
+matchedSummary[contains].pages.push(pageNumber);
+
+log(`Inserted: Page ${pageNumber} - ${group.map(g => g.text).join(" | ")}`);
       }
     }
 
@@ -264,7 +275,34 @@ startBtn.addEventListener("click", async () => {
   downloadFailedReport(failed);
 
   log("");
-  log("Done.");
-  log(`Inserted links: ${inserted}`);
-  log(`Failed: ${failed.length}`);
+log("================================");
+log("Done.");
+log(`Inserted links : ${inserted}`);
+log(`Failed         : ${failed.length}`);
+
+log("");
+log("Matched summary:");
+log("--------------------------------");
+
+Object.keys(matchedSummary).forEach(key => {
+  const item = matchedSummary[key];
+  const uniquePages = [...new Set(item.pages)];
+
+  log(`• ${key}`);
+  log(`  Matched : ${item.count}`);
+  log(`  Pages   : ${uniquePages.join(", ")}`);
+  log("");
+});
+
+if (failed.length > 0) {
+  log("Failed items:");
+  log("--------------------------------");
+
+  failed.forEach(item => {
+    log(`• ${item.contains || "(blank)"}`);
+    log(`  URL    : ${item.url || "(blank)"}`);
+    log(`  Reason : ${item.reason}`);
+    log("");
+  });
+}
 });
