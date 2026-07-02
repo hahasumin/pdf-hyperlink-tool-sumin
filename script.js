@@ -67,30 +67,36 @@ function groupLinkedLines(lines, startIndex) {
   const group = [lines[startIndex]];
   const first = lines[startIndex];
 
+  // Location column 기준
+  const LOCATION_X_MIN = first.x - 10;
+  const LOCATION_X_MAX = first.x + 220;
+
   for (let i = startIndex + 1; i < lines.length; i++) {
     const current = lines[i];
     const previous = group[group.length - 1];
 
     const yGap = previous.y - current.y;
-    const xClose = Math.abs(current.x - first.x) < 20;
 
-    const looksLikeSameBlock =
-      yGap > 6 &&
-      yGap < 22 &&
-      xClose;
+    const inSameLocationColumn =
+      current.x >= LOCATION_X_MIN &&
+      current.x <= LOCATION_X_MAX;
 
-    if (looksLikeSameBlock) {
+    const closeVertically =
+      yGap > 4 &&
+      yGap < 18;
+
+    if (inSameLocationColumn && closeVertically) {
       group.push(current);
     } else {
       break;
     }
 
+    // 최대 3줄까지 같은 location cell로 묶음
     if (group.length >= 3) break;
   }
 
   return group;
 }
-
 function rectFromLine(line) {
   return {
     x: line.x,
