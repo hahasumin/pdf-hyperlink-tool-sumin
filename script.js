@@ -64,29 +64,44 @@ async function getTextLines(pdfBytes, pageNumber) {
 }
 
 function groupLinkedLines(lines, startIndex) {
-  const group = [lines[startIndex]];
   const first = lines[startIndex];
+  const group = [first];
 
-  for (let i = startIndex + 1; i < lines.length; i++) {
-    const current = lines[i];
-    const previous = group[group.length - 1];
+  const X_TOLERANCE = 20;   // 아래 줄 시작점 허용 범위
+  const MIN_Y_GAP = 6;
+  const MAX_Y_GAP = 24;
 
-    const yGap = previous.y - current.y;
+  let currentBase = first;
 
-    // 세로로 바로 아래에 있는지
-    const closeVertically =
-      yGap > 4 &&
-      yGap < 18;
+  for (let step = 0; step < 3; step++) {
+    const candidates = lines.filter(line => {
+      const yGap = currentBase.y - line.y;
 
-    // 거의 같은 x 시작점인지
-    const sameLeftEdge =
-      Math.abs(current.x - first.x) < 8;
+      const isBelow =
+        yGap > MIN_Y_GAP &&
+        yGap < MAX_Y_GAP;
 
-    if (closeVertically && sameLeftEdge) {
-      group.push(current);
-    } else {
-      break;
-    }
+      const sameColumn =
+        Math.abs(line.x - first.x) < X_TOLERANCE;
+
+      return isBelow && sameColumn;
+    });
+
+    if (candidates.length === 0) break;
+
+    // 가장 가까운 아래 줄 선택
+    candidates.sort((a, b) => {
+      const gapA = currentBase.y - a.y;
+      const gapB = currentBase.y - b.y;
+      return gapA - gapB;
+    });
+
+    const nextLine = candidates[0];
+
+    if (group.includes(nextLine)) break;
+
+    group.push(nextLine);
+    currentBase = nextLine;
 
     if (group.length >= 3) break;
   }
