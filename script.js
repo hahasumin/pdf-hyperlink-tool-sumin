@@ -227,7 +227,12 @@ startBtn.addEventListener("click", async () => {
     const url = normalize(rule.url);
 
     if (!contains || !url) {
-      failed.push({ contains, url, reason: "Missing contains or url" });
+     failed.push({
+  csvRow: rule.csvRow,
+  contains,
+  url,
+  reason: "Missing contains or url"
+});
       continue;
     }
 
@@ -270,10 +275,11 @@ log(`Inserted: Page ${pageNumber} - ${group.map(g => g.text).join(" | ")}`);
 
     if (!found) {
       failed.push({
-        contains,
-        url,
-        reason: "No matching text found"
-      });
+  csvRow: rule.csvRow,
+  contains,
+  url,
+  reason: "No matching text found"
+});
     }
   }
 
@@ -288,7 +294,7 @@ log(`Inserted: Page ${pageNumber} - ${group.map(g => g.text).join(" | ")}`);
 
   downloadFailedReport(failed);
 
- log("");
+log("");
 log("================================");
 log("Done.");
 log("");
@@ -301,13 +307,14 @@ if (failed.length > 0) {
   log("--------------------------------");
 
   failed.forEach(item => {
-    log(`• ${item.contains || "(blank)"}`);
-    log(`  Reason : ${item.reason}`);
+    log(`CSV row : ${item.csvRow}`);
+    log(`Contains: ${item.contains || "(blank)"}`);
 
     if (item.url) {
-      log(`  URL    : ${item.url}`);
+      log(`URL     : ${item.url}`);
     }
 
+    log(`Reason  : ${item.reason}`);
     log("");
   });
 } else {
