@@ -227,7 +227,21 @@ startBtn.addEventListener("click", async () => {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        if (!line.text.includes(contains)) continue;
+       const escaped = contains.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+let regex;
+
+if (/^Building\s+\d+/i.test(contains)) {
+    // Building 번호인 경우
+    regex = new RegExp(`${escaped}(?!\\d)`, "i");
+} else {
+    // 일반 텍스트인 경우
+    regex = new RegExp(`\\b${escaped}\\b`, "i");
+}
+
+if (!regex.test(line.text)) continue;
+
+if (!regex.test(line.text)) continue;
 
         const group = groupLinkedLines(lines, i);
         const rects = group.map(rectFromLine);
