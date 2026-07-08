@@ -39,9 +39,7 @@ function parseCSV(text) {
   });
 }
 
-async function getTextLines(pdfBytes, pageNumber) {
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes.slice(0) });
-  const pdf = await loadingTask.promise;
+async function getTextLines(pdf, pageNumber) {
   const page = await pdf.getPage(pageNumber);
   const textContent = await page.getTextContent();
 
@@ -198,6 +196,7 @@ startBtn.addEventListener("click", async () => {
   const rules = parseCSV(csvText);
 
   const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes.slice(0));
+  const pdfjsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
   const pages = pdfDoc.getPages();
 
   let inserted = 0;
@@ -208,6 +207,18 @@ startBtn.addEventListener("click", async () => {
   log(`Rules: ${rules.length}`);
   log("");
 
+log("Reading PDF text...");
+const textLinesByPage = [];
+
+for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+  const pageNumber = pageIndex + 1;
+  log(`Reading page ${pageNumber} of ${pages.length}...`);
+  textLinesByPage[pageIndex] = await getTextLines(pdfjsDoc, pageNumber);
+}
+
+log("PDF text ready.");
+log("");
+  
   for (const rule of rules) {
     const contains = normalize(rule.contains);
     const url = normalize(rule.url);
