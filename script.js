@@ -249,7 +249,7 @@ if (!regex.test(line.text)) continue;
 
         addLink(pdfDoc, page, linkRect, url);
 
-        rects.forEach(rect => underline(page, rect));
+        //rects.forEach(rect => underline(page, rect));
 
         inserted++;
 found = true;
